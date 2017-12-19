@@ -2,9 +2,11 @@
 title: "Practical Machine Learning Week 4 Assignment"
 author: "Rosliza Hamzah"
 date: "12/13/2017"
-output: rmarkdown::github_document
+output: 
+  html_document:
+    keep_md: true
 ---
-output: rmarkdown::github_document
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
