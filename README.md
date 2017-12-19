@@ -5,11 +5,9 @@ Hi.
 IMPORTANT NOTE TO REVIEWERS/EVALUATORS: TO VIEW THE CODE AND OUTPUT PLEASE CHOOSE THE FILE NAME ENTITLED, "rosliza_c8_week4a.md"
 
 
-
+--------------------------------------------------------------------------------------------------------
 
 This repository is intended for Coursera Practical Machine Learning Week 4 Assignment Project Submission.
-
-Important Note: To view the code and output please select rosliza_c8_week4a.md file.
 
 Enclosed together with this readme.md file are the following files:
 
