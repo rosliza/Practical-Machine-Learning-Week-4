@@ -1,6 +1,8 @@
 # Practical-Machine-Learning-Week-4
 
-Hi...
+Hi.
+
+IMPORTANT NOTE TO REVIEWERS ANd EVALUATORS: TO VIEW THE CODE AND OUTPUT PLEASE CHOOSE THE FILE NAME ENTITLED, "rosliza_c8_week4a.md"
 
 This repository is intended for Coursera Practical Machine Learning Week 4 Assignment Project Submission.
 
