@@ -1,0 +1,207 @@
+---
+title: "Practical Machine Learning Week 4 Assignment"
+author: "Rosliza Hamzah"
+date: "12/13/2017"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+## load libraries
+library(rpart.plot)
+library(rpart)
+library(e1071)
+library(dplyr)
+library(ggplot2)
+library(caret)
+library(kernlab)
+library(randomForest)
+
+```
+
+## Section 1. Overview:
+The provided dataset (refer to Section 2.1) was based on a research project entitled, *Human Activity Recognition*. (Please refer to *"Section 6 References:"* for more information.) The given dataset basically contains weight lifting exercises performed by 6 participants. The participants were asked to perform barbell lifts *correctly and incorrectly in 5 different ways*. The datasets was recorded using a customized wearable devices that consist of accelerometers. The objective of this assignment is to utilize the given dataset and **predict the manner in which the participants performed the exercise,** leverage on the variable,`classe`.  
+
+## Section 2. Downloading Data & Exploratory Data Analysis:
+Section 2 is divided into 2 sub sections; "Downloading Data"" and "Exploratory Data Analysis"
+
+### Section 2.1 Downloading Data:
+First, we download the 2 datasets from the following URL link: 
+
+1. Training Raw Data: https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+2. Test Raw Data: https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+```{r}
+# set the URL for the download
+url_train_data <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+url_test_test <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+
+file_training_set = file.path("rawdataset","pml-training.csv")
+file_testing_set = file.path("rawdataset","pml-testing.csv")
+
+# download the datasets
+if (!file.exists(file_training_set) || !file.exists(file_testing_set)){
+    if(!dir.exists(file.path("rawdataset"))){
+        dir.create("rawdataset")
+    }
+    download.file(url_train_data, file_training_set, method="curl")
+    download.file(url_test_test, file_testing_set, method="curl")
+}
+
+# assign into variables
+train.dataset.raw <- read.csv(file_training_set, na.strings = c("NA", ""))
+test.dataset.raw <- read.csv(file_testing_set, na.strings = c("NA", ""))
+```
+
+After the the data is successfully downloaded, we assigned the 2 raw datasets into 2 variables, namely, `train.dataset.raw`, `test.dataset.raw` respectively.
+
+### Section 2.2 Exploratory Data Analysis:
+
+Both raw datasets (`train.dataset.raw` and `test.dataset.raw`) contains the same type and total number of columns (160). The `train.dataset.raw` set contains 19622 entries, while the `test.dataset.raw` contains 20 entries. We have also identify there are many *"NA"*, values exist in the both datasets, which should be cleansed. Based on our observation, there are 7 types of columns observed as identifiers such as `X`, `user_name`, `raw_timestamp_part_1`, `raw_timestamp_part_2 `, `cvtd_timestamp `, `new_window` and `num_window`, which need to be removed as well. Please refer to **_Appendix A - `train.dataset.raw` Dataset Structure_** to view the train raw data.
+
+```{r}
+dimension_train_raw <- dim(train.dataset.raw)
+dimension_test_raw <- dim(test.dataset.raw)
+num_of_NA_raw_train <- colSums(is.na(train.dataset.raw))
+num_of_NA_raw_test <- colSums(is.na(test.dataset.raw))
+class_tbl_output <- table(train.dataset.raw$classe)
+```
+
+Exploring the `classe` column data within the `train.dataset.raw` dataset, indicates that there are 5 types, based on the table output code chunk (`class_tbl_output`), the `classe` with the values *"A"*, have more entires as compared to others. Please refer to the **_Appendix B - Histrogram of `classe`, - `train.dataset.raw`_** 
+
+## Section 3. Data Cleansing.
+
+Based on data exploration analysis findings, we shall remove the 7 columns mentioned previously and the *"NA"* value entries for both `train.dataset.raw` and `test.dataset.raw` and assigned into 2 new variables as cleansed datasets.
+
+```{r}
+## Cleansing raw train 'NA' column & column 1-7 as identifier column
+train.dataset.clean <- train.dataset.raw[, colSums(is.na(train.dataset.raw)) == 0]
+train.dataset.clean <- train.dataset.clean[, -c(1:7)]
+
+## Cleansing raw test 'NA' column & column 1-7 as identifier column
+test.dataset.clean <- test.dataset.raw[, colSums(is.na(test.dataset.raw)) == 0]
+test.dataset.clean <- test.dataset.clean[, -c(1:7)]
+
+dim(train.dataset.clean)
+dim(test.dataset.clean)
+```
+
+After cleansing, we now, have `r dim(train.dataset.clean)[2]` variables (columns) for both datasets known as `train.dataset.clean` & `test.dataset.clean`. Please refer to **_Appendix C - List of Variables for `train.dataset.clean`_**
+
+## Section 4. Constructing Prediction Model:
+Section 4 is divided into 4 sub sections; *"Partitioning `train.dataset.clean`"*, *"Using Random Forest Algorithm"*, *"Using Decision Tree"* and *Accuracy Level Results*.
+
+### Section 4.1 Partitioning `train.dataset.clean`:
+
+The cleansed training dataset (`train.dataset.clean`) will be divided into 2 partitions :-
+
+1. Training Set (`trainset`) - allocate: 70%
+2. Test Validation Set (`crossvalidationset`) - allocate: 30%
+
+```{r}
+inTrain <- createDataPartition(y=train.dataset.clean$classe, p=0.7, list = FALSE)
+trainset <- train.dataset.clean[inTrain,]
+testvalidationset <- train.dataset.clean[-inTrain,]
+```
+
+*Decision Tree* and *Random Forest Algorithm* model will be applied into the partition data `trainset` and `testvalidationset`. The highest accuracy between the 2 model will be the chosen predictor model. 
+
+### Section 4.2 Using Random Forest Algorithm:
+
+We use **Random Forest Algorithm** to *fit* the `classe` variable with `trainset` dataset mentioned above and assigned into another variable known as `rf.model.fit` The `rf.model.fit` variable will used to perform prediction for `testvalidationset` and inspect the *Random Forest* accuracy level leverage on *confusionMatrix* function. 
+
+```{r}
+set.seed(1234)
+
+## create prediction model using Random Forest Algorithm
+rf.model.fit <- randomForest(classe ~ ., data=trainset, method="class", importance=TRUE, 
+                          proximity=TRUE, ntree=30)
+
+## predict for "testvalidationset" (the 30% partition data) based on Random Forest fit Model
+rf.predict <- predict(rf.model.fit, testvalidationset)
+
+## evaluate prediction model
+rf.confusion.matrix <- confusionMatrix(rf.predict, testvalidationset$classe)
+```
+
+### Secion 4.3 Using Decision Tree:
+
+We use **Decision Tree** to *fit* the `classe` variable with `trainset` variable and assigned into a variable known as `dc.model.fit` The `dc.model.fit` variable will used to perform prediction using `testvalidationset` and inspect the *Decision Tree* accuracy level leverage on *confusionMatrix* function.
+
+```{r}
+set.seed(4567)
+
+## create prediction model using Decision Tree
+dc.model.fit <- rpart(classe ~ ., data=testvalidationset, method="class")
+
+# prediction based on Decision Tree
+dc.predict <- predict(dc.model.fit, newdata=testvalidationset, type="class")
+
+## evaluate Decision Tree prediction model accuracy
+dc.confusion.matrix <- confusionMatrix(dc.predict, testvalidationset$classe)
+```
+
+### Section 4.4 Accuracy Level Results:
+The `testvalidationset` using *Random Forest Algorithm* indicates that the accuracy is `r format(rf.confusion.matrix$overall[1]*100, digits=2)`%. The output detail is provided in **_Appendix D - Random Forest Algorithm Confusion Matrix Output_**. The `testvalidationset` using *Decision Tree* indicates that the accuracy is `r format(dc.confusion.matrix$overall[1]*100, digits=2)`%. The output detail is provided in **_Appendix E - Decision Tree Confusion Matrix Output_**.
+
+Comparing the above mentioned, *"Random Forest Algorithm"* is much more ideal model as compared to *"Decision Tree"* based on its accuracy level.
+
+## Section 5. Applying The Highest Accuracy Model into `test.dataset.clean`:
+Based on the accuracy level result decsribed above, we will apply *Random Forest Algorithm* the predictor model for `test.dataset.clean` dataset and generate the `classe` prediction output values. The below mentioned output (`final.predict`) will be used to answer Week 4 quiz.
+```{r}
+final.predict <- predict(rf.model.fit, test.dataset.clean)
+final.predict
+```
+
+
+## Section 6. References:
+
+Ugulino, W.; Cardador, D.; Vega, K.; Velloso, E.; Milidiu, R.; Fuks, H. Wearable Computing: Accelerometers Data Classification of Body Postures and Movements. Proceedings of 21st Brazilian Symposium on Artificial Intelligence. Advances in Artificial Intelligence - SBIA 2012. In: Lecture Notes in Computer Science. , pp. 52-61. Curitiba, PR: Springer Berlin / Heidelberg, 2012. ISBN 978-3-642-34458-9. DOI: 10.1007/978-3-642-34459-6_6.
+http://groupware.les.inf.puc-rio.br/har
+
+\newpage
+---
+
+## Section 7. Appendixes:
+### Appendix A - `train.dataset.raw` Dataset Structure: 
+
+```{r}
+str(train.dataset.raw)
+```
+
+### Appendix B - Histogram of `classe` - `train.dataset.raw`: 
+
+```{r, warning=FALSE}
+ggplot(data = train.dataset.clean, aes(x=classe)) +
+    geom_histogram(stat = "count") +
+    scale_x_discrete(name = "classe") +
+    scale_y_continuous(name = "count") +
+    ggtitle("Classes")
+```
+
+### Appendix C - List of Variables For `train.dataset.clean`: 
+
+```{r}
+names(train.dataset.clean)
+```
+
+
+### Appendix D - Random Forest Algorithm Confusion Matrix Output:
+
+```{r, warning=FALSE}
+rf.confusion.matrix
+```
+
+### Appendix E - Decision Tree Confusion Matrix Output:
+
+```{r, warning=FALSE}
+dc.confusion.matrix
+```
+
+
